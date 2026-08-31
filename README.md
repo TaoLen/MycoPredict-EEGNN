@@ -202,6 +202,7 @@ activity.
 
 ## License
 
-This repository follows the HolisticGNN project license: Creative Commons
-Attribution-NonCommercial 4.0 International (CC BY-NC 4.0). See `LICENSE` for
-the applicable terms.
+MycoPredict-EEGNN is independently licensed under the Creative Commons
+Attribution-NonCommercial 4.0 International license (CC BY-NC 4.0). This
+license applies directly to this repository and does not inherit terms from
+HolisticGNN or any other repository. See `LICENSE` for the applicable terms.

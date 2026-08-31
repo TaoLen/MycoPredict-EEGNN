@@ -1,7 +1,15 @@
 Creative Commons Attribution-NonCommercial 4.0 International (CC BY-NC 4.0)
 
-Copyright (c) 2026 Laboratory of Cheminformatics (LCi), Faculty of Pharmacy, Federal University of Goiás, Brazil.
+Copyright (c) 2026 Laboratory of Cheminformatics (LCi), Faculty of Pharmacy,
+Federal University of Goiás, Brazil.
 
-This work is licensed under the Creative Commons Attribution-NonCommercial 4.0 International License.
-To view a copy of this license, visit https://creativecommons.org/licenses/by-nc/4.0/
+The MycoPredict-EEGNN repository, also presented as MycoGraphX, and its original
+contents are licensed under the Creative Commons Attribution-NonCommercial 4.0
+International License.
 
+This license applies independently to this repository. It does not incorporate
+or depend on the license terms of HolisticGNN or any other repository.
+Third-party libraries and dependencies remain subject to their own licenses.
+
+To view a copy of this license, visit:
+https://creativecommons.org/licenses/by-nc/4.0/
