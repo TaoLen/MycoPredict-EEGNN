@@ -1,0 +1,50 @@
+{
+  "artifact_version": 4,
+  "domain_schema": "embedding-kde-v4",
+  "method": "reflection-corrected Gaussian KDE over task-specific leave-one-out mean 5-NN Euclidean distances in standardized and L2-normalized final EEGNN embeddings",
+  "embedding_source": "one deterministic final embedding per training molecule, extracted immediately before the prediction layer from the selected checkpoint",
+  "task_keys": [
+    "M-fortuitum",
+    "M-kansasii",
+    "M-bovis",
+    "M-tuberculosis-MABA",
+    "M-tuberculosis-LORA",
+    "M-smegmatis",
+    "M-abcessus",
+    "M-tuberculosis-BACTEC",
+    "M-tuberculosis-Dillution"
+  ],
+  "task_names": [
+    "M. fortuitum",
+    "M. kansasii",
+    "M. bovis",
+    "M. tuberculosis (MABA)",
+    "M. tuberculosis (LORA)",
+    "M. smegmatis",
+    "M. abscessus",
+    "M. tuberculosis (BACTEC)",
+    "M. tuberculosis (dilution)"
+  ],
+  "task_reference_counts": [
+    324,
+    513,
+    622,
+    8577,
+    1210,
+    1772,
+    265,
+    589,
+    3378
+  ],
+  "neighbor_count": 5,
+  "embedding_original_dimensions": 364,
+  "embedding_decision_dimensions": 364,
+  "kde_kernel": "gaussian",
+  "kde_boundary_correction": "reflection at zero",
+  "kde_bandwidth_rule": "Scott",
+  "inside_cdf_probability": 0.95,
+  "outer_cdf_probability": 0.99,
+  "model_sha256": "117dffc4e79fd8775bce63350c8f6d63d95a2e506d9d9981ff9db0840503bb88",
+  "train_sha256": "e513fdda12c96ce98bc488614f3febb93cfb2eb358498aa25e61afac12eb739b",
+  "validation_sha256": "f3215658a825033651fbc744fdbd3f09fddf821b7f306a77141e00ad8b6cb883"
+}

@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.git/
+.github/
+.venv/
+.gitignore
+.gitattributes
+README.md
+packages.txt
+requirements-dev.txt
+scripts/
+tests/

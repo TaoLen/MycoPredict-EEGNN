@@ -1,0 +1,6 @@
+*.npz binary
+*.pth binary
+*.png binary
+
+* text=auto
+

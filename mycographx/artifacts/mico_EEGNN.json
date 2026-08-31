@@ -1,0 +1,16 @@
+{
+    "num_agg_layers": 2,
+    "agg_hidden_dim_1": 165,
+    "agg_hidden_dim_2": 268,
+    "num_lin_layers": 2,
+    "lin_hidden_dim_1": 456,
+    "lin_hidden_dim_2": 364,
+    "activation": "elu",
+    "dropout_rate": 0.26805347834579485,
+    "num_components": 8,
+    "concentration": 1.3291527300218369,
+    "prior_concentration": 2.7028599000305307,
+    "mcmc_iters": 3,
+    "optimizer": "Adam",
+    "weight_decay": 5.8264741313209314e-05
+}
