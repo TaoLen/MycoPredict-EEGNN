@@ -32,6 +32,8 @@ from .rules import (
     ring_family_rules,
     bond_family_rules,
     diaryl_family_rules,
+    toggle_charge_family_rules,
+    polyvalent_family_rules,
     aliphatic_family_rules,
     rule_fragments,
     sp2_polar_filters,
@@ -2020,6 +2022,343 @@ def apply_phosphorus_family(
                     )
 
 
+def apply_toggle_charge_family(
+    families,
+    data_raw,
+    node_idx,
+    out,
+    seen):
+
+    if "TOGGLE_CHARGE_FAMILY_ALL" not in families:
+        return
+
+    charge_rules = toggle_charge_family_rules()
+    charge_rule_id = charge_rules[0]["rule_id"
+                ] if charge_rules else "TOGGLE_CHARGE_FAMILY_ALL"
+
+    def is_aromatic_node_local(data, idx):
+        slices = feature_slices()
+        arom_idx = slices["aromatic"]
+        return bool(data.x[idx, arom_idx].item() > 0.5)
+
+    def is_amine(data, idx):
+        if atomic_num_at(data, idx) != 7:
+            return False
+        if is_aromatic_node_local(data, idx):
+            return False
+        valence, degree = node_valence_degree(data, idx)
+        if degree not in (1, 2, 3):
+            return False
+        src, dst = data.edge_index
+        orders = bond_orders(data.edge_attr)
+        mask = (src == idx) | (dst == idx)
+        if not mask.any():
+            return False
+        if any(float(o.item()) != 1.0 for o in orders[mask]):
+            return False
+        adj_local = adjacency_list(data.edge_index, data.x.size(0))
+        for nbr in adj_local[idx]:
+            if atomic_num_at(data, nbr) != 6:
+                return False
+            for nb2 in adj_local[nbr]:
+                if nb2 == idx:
+                    continue
+                if bond_order_between(data, nbr, nb2
+                        ) == 2.0 and atomic_num_at(data, nb2) in (8, 16, 34):
+                    return False
+        return valence <= 3.0
+
+    def is_carboxylate_oxygen(data, idx):
+        if atomic_num_at(data, idx) != 8:
+            return False
+        src, dst = data.edge_index
+        orders = bond_orders(data.edge_attr)
+        mask = (src == idx) | (dst == idx)
+        if not mask.any():
+            return False
+        valence, degree = node_valence_degree(data, idx)
+        if degree != 1:
+            return False
+        adj_local = adjacency_list(data.edge_index, data.x.size(0))
+        for nbr in adj_local[idx]:
+            if atomic_num_at(data, nbr) == 7:
+                return False
+        for e_idx in torch.where(mask)[0].tolist():
+            if float(orders[e_idx].item()) != 1.0:
+                continue
+            nbr = int(dst[e_idx].item()) if int(
+                src[e_idx].item()) == idx else int(src[e_idx].item())
+            nbr_atom = atomic_num_at(data, nbr)
+            if nbr_atom == 6:
+                nbr_mask = (src == nbr) | (dst == nbr)
+                if any(
+                    float(orders[k].item()) == 2.0 and
+                    atomic_num_at(data, int(dst[k].item()
+                            ) if int(src[k].item()) == nbr else int(src[k].item())) == 8
+                    for k in torch.where(nbr_mask)[0].tolist()):
+                    return True
+            if nbr_atom in (15, 16):
+                return True
+        return False
+
+    def toggle_charge(data, idx):
+        charge = atomic_charge_at(data, idx)
+        if is_amine(data, idx):
+            if charge == 0:
+                set_formal_charge(data, idx, 1)
+                update_all_features(data)
+                return True
+            if charge == 1:
+                set_formal_charge(data, idx, 0)
+                update_all_features(data)
+                return True
+        if is_carboxylate_oxygen(data, idx):
+            if charge == 0:
+                set_formal_charge(data, idx, -1)
+                update_all_features(data)
+                return True
+            if charge == -1:
+                set_formal_charge(data, idx, 0)
+                update_all_features(data)
+                return True
+        return False
+
+    def charge_group(data, idx):
+        if is_amine(data, idx):
+            adj_local = adjacency_list(data.edge_index, data.x.size(0))
+            return sorted({idx} | set(adj_local[idx]))
+        if is_carboxylate_oxygen(data, idx):
+            adj_local = adjacency_list(data.edge_index, data.x.size(0))
+            group = {idx}
+            for nbr in adj_local[idx]:
+                group.add(nbr)
+                if atomic_num_at(data, nbr) == 6:
+                    for nb2 in adj_local[nbr]:
+                        if nb2 == idx:
+                            continue
+                        if atomic_num_at(data, nb2
+                                ) == 8 and bond_order_between(data, nbr, nb2) == 2.0:
+                            group.add(nb2)
+            return sorted(group)
+        return [idx]
+
+    def guanidine_core(data, idx):
+        if atomic_num_at(data, idx) != 7:
+            return None
+        if is_aromatic_node_local(data, idx):
+            return None
+        adj_local = adjacency_list(data.edge_index, data.x.size(0))
+        for c in adj_local[idx]:
+            if atomic_num_at(data, c) != 6:
+                continue
+            n_neighbors_local = [
+                n for n in adj_local[c] if atomic_num_at(data, n) == 7
+                ]
+            if len(n_neighbors_local) < 3:
+                continue
+            if not any(
+                bond_order_between(data, c, n
+                        ) == 2.0 for n in n_neighbors_local):
+                continue
+            return c, n_neighbors_local
+        return None
+
+    g = guanidine_core(data_raw, node_idx)
+    handled = False
+    if g is not None:
+        core_c, n_list = g
+        for n in n_list:
+            data_work = copy.deepcopy(data_raw)
+            charge_n = atomic_charge_at(data_work, n)
+            if charge_n == 0:
+                set_formal_charge(data_work, n, 1)
+                update_all_features(data_work)
+            elif charge_n == 1:
+                set_formal_charge(data_work, n, 0)
+                update_all_features(data_work)
+            else:
+                continue
+            if True:
+                h = (data_work.x.cpu().numpy().tobytes(),
+                    data_work.edge_index.cpu().numpy().tobytes(),
+                    data_work.edge_attr.cpu().numpy().tobytes()
+                    )
+                if h in seen:
+                    continue
+                seen.add(h)
+                group = sorted({core_c} | set(n_list))
+                out.append((data_work, group, charge_rule_id))
+                handled = True
+    if not handled:
+        data_work = copy.deepcopy(data_raw)
+        if toggle_charge(data_work, node_idx):
+            h = (data_work.x.cpu().numpy().tobytes(),
+                data_work.edge_index.cpu().numpy().tobytes(),
+                data_work.edge_attr.cpu().numpy().tobytes()
+                )
+            if h not in seen:
+                seen.add(h)
+                group = charge_group(data_raw, node_idx)
+                out.append((data_work, group, charge_rule_id))
+
+
+def apply_polyvalent_family(
+    families,
+    data_raw,
+    node_idx,
+    out,
+    seen):
+
+    if "POLYVALENT_FAMILY_ALL" not in families:
+        return
+
+    poly_rules = polyvalent_family_rules()
+    poly_rule_id = poly_rules[0][
+        "rule_id"] if poly_rules else "POLYVALENT_FAMILY_ALL_SWAP"
+
+    def neighbors_all_c(data, idx, require_single=True):
+        adj_local = adjacency_list(data.edge_index, data.x.size(0))
+        for nbr in adj_local[idx]:
+            if atomic_num_at(data, nbr) != 6:
+                return False
+            if require_single and bond_order_between(data, idx, nbr) != 1.0:
+                return False
+        return True
+
+    def has_any_non_c_neighbor(data, idx):
+        adj_local = adjacency_list(
+            data.edge_index, data.x.size(0))
+        return any(atomic_num_at(
+            data, n) != 6 for n in adj_local[idx])
+
+    def has_hetero_or_halogen_neighbor(data, idx):
+        adj_local = adjacency_list(
+            data.edge_index, data.x.size(0))
+        return any(atomic_num_at(data, n) in (
+            7, 8, 16, 34, 9, 17, 35, 53, 33, 15) for n in adj_local[idx])
+
+    def apply_center_swap(center, target_atom, target_charge):
+        data_work = copy.copy(data_raw)
+        data_work.x = data_raw.x.clone()
+        data_work.edge_index = data_raw.edge_index.clone()
+        data_work.edge_attr = data_raw.edge_attr.clone()
+        set_atomic_num(data_work, center, target_atom)
+        set_formal_charge(data_work, center, target_charge)
+        update_all_features(data_work)
+        normalize_edge_attr(data_work)
+        atom_num_new = atomic_num_at(data_work, center)
+        valence, _ = node_valence_degree(data_work, center)
+        if not valence_ok(atom_num_new, valence):
+            if not (atom_num_new == 7
+                    and target_charge == 1 and valence <= 4.0):
+                return
+        else:
+            pass
+        h = (data_work.x.cpu().numpy().tobytes(),
+            data_work.edge_index.cpu().numpy().tobytes(),
+            data_work.edge_attr.cpu().numpy().tobytes()
+            )
+        if h in seen:
+            return
+        seen.add(h)
+        adj_local = adjacency_list(
+            data_raw.edge_index, data_raw.x.size(0))
+        group = {center}
+        slices = feature_slices()
+        arom_idx = slices["aromatic"]
+        for nbr in adj_local[center]:
+            if atomic_num_at(data_raw, center) != 5:
+                if bool(data_raw.x[nbr, arom_idx].item() > 0.5):
+                    continue
+                if is_ring_atom(data_raw, nbr):
+                    continue
+            group.add(nbr)
+        group = sorted(group)
+        out.append((data_work, group, poly_rule_id))
+
+    src, dst = data_raw.edge_index
+    orders = bond_orders(data_raw.edge_attr)
+    for e_idx in torch.where((src == node_idx
+            ) | (dst == node_idx))[0].tolist():
+        if float(orders[e_idx].item()) != 2.0:
+            continue
+        i = int(src[e_idx].item())
+        j = int(dst[e_idx].item())
+        if atomic_num_at(data_raw, i
+            ) != 33 or atomic_num_at(data_raw, j) != 33:
+            continue
+        if i > j:
+            i, j = j, i
+        for ti, tj in ((7, 7), (6, 6)):
+            data_work = copy.copy(data_raw)
+            data_work.x = data_raw.x.clone()
+            data_work.edge_index = data_raw.edge_index.clone()
+            data_work.edge_attr = data_raw.edge_attr.clone()
+            set_atomic_num(data_work, i, ti)
+            set_atomic_num(data_work, j, tj)
+            update_all_features(data_work)
+            normalize_edge_attr(data_work)
+            for n in (i, j):
+                atom_num_new = atomic_num_at(data_work, n)
+                valence, _ = node_valence_degree(data_work, n)
+                if not valence_ok(atom_num_new, valence):
+                    break
+            else:
+                h = (data_work.x.cpu().numpy().tobytes(),
+                    data_work.edge_index.cpu().numpy().tobytes(),
+                    data_work.edge_attr.cpu().numpy().tobytes()
+                    )
+                if h in seen:
+                    continue
+                seen.add(h)
+                adj_local = adjacency_list(
+                    data_raw.edge_index, data_raw.x.size(0))
+                group = sorted({i, j} | set(adj_local[i]) | set(adj_local[j]))
+                out.append((data_work, group, poly_rule_id))
+
+    atom_num = atomic_num_at(data_raw, node_idx)
+    valence, degree = node_valence_degree(data_raw, node_idx)
+
+    if degree == 4 and neighbors_all_c(
+        data_raw, node_idx, require_single=True):
+        if atom_num in (15, 7, 33, 14):
+            for target in (15, 7, 33, 14, 6):
+                if target == atom_num:
+                    continue
+                charge_val = 0
+                if target == 7:
+                    charge_val = 1
+                apply_center_swap(node_idx, target, charge_val)
+
+    if atom_num in (33, 15, 14) and degree == 3 and neighbors_all_c(
+        data_raw, node_idx, require_single=True):
+        if has_hetero_or_halogen_neighbor(data_raw, node_idx):
+            apply_center_swap(node_idx, 6, 0)
+        else:
+            apply_center_swap(node_idx, 7, 0)
+            apply_center_swap(node_idx, 14, 0)
+            apply_center_swap(node_idx, 6, 0)
+
+    if atom_num == 33 and degree == 2:
+        adj_local = adjacency_list(
+            data_raw.edge_index, data_raw.x.size(0))
+        orders_local = [bond_order_between(
+            data_raw, node_idx, n) for n in adj_local[node_idx]]
+        if 2.0 in orders_local and 1.0 in orders_local:
+            apply_center_swap(node_idx, 6, 0)
+        elif all(o == 1.0 for o in orders_local):
+
+            if not has_any_non_c_neighbor(data_raw, node_idx):
+                apply_center_swap(node_idx, 7, 0)
+            apply_center_swap(node_idx, 6, 0)
+    if atom_num == 5:
+        apply_center_swap(node_idx, 6, 0)
+        apply_center_swap(node_idx, 14, 0)
+    if atom_num == 14:
+        apply_center_swap(node_idx, 5, 0)
+        apply_center_swap(node_idx, 6, 0)
+
+
 def apply_aliphatic_family(
     families,
     data_raw,
@@ -2794,10 +3133,12 @@ def apply_rulebook_perturbations(
         "SP3_REACTIVE_ALL",
         "REDOX_FAMILY",
         "ACYL_FAMILY_ALL",
-        "AMIDE_FAMILY_ALL",
         "CARBAMATE_FAMILY_ALL",
+        "AMIDE_FAMILY_ALL",
         "SULFURE_FAMILY_ALL",
         "PHOSPHORUS_FAMILY_ALL",
+        "TOGGLE_CHARGE_FAMILY_ALL",
+        "POLYVALENT_FAMILY_ALL",
         "ALIPHATIC_FAMILY_ALL",
         "TOGGLE_RING_FAMILY_ALL",
         "RING_FAMILY_ALL",
@@ -2816,6 +3157,9 @@ def apply_rulebook_perturbations(
         "AMIDE_FAMILY_ALL" in families or
         "CARBAMATE_FAMILY_ALL" in families or
         "SULFURE_FAMILY_ALL" in families or
+        "PHOSPHORUS_FAMILY_ALL" in families or
+        "TOGGLE_CHARGE_FAMILY_ALL" in families or
+        "POLYVALENT_FAMILY_ALL" in families or
         "ALIPHATIC_FAMILY_ALL" in families or
         "TOGGLE_RING_FAMILY_ALL" in families or
         "RING_FAMILY_ALL" in families or
@@ -3078,6 +3422,20 @@ def apply_rulebook_perturbations(
             seen
             )
         apply_phosphorus_family(
+            families,
+            data_raw,
+            node_idx,
+            out,
+            seen
+            )
+        apply_toggle_charge_family(
+            families,
+            data_raw,
+            node_idx,
+            out,
+            seen
+            )
+        apply_polyvalent_family(
             families,
             data_raw,
             node_idx,

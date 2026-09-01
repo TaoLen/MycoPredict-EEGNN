@@ -167,8 +167,14 @@ coverage diagnostic, not a guarantee of correctness or biological activity.
 After running a single prediction, select a target and generate the map. The
 rulebook applies every valid local chemical transformation to every atom in the
 molecule and measures the resulting paired changes in the model score. There is
+one shared complete family set with the research notebook, including charge
+toggles, polyvalent-center substitutions, and aliphatic isosteres. There is
 no per-atom sampling limit. Consequently, map generation can take substantially
 longer for large structures or structures admitting many transformations:
+
+The deployed rulebook version is `2.0.0`. It is included in counterfactual CSV
+exports and in explanation cache keys so results from older rulebooks are not
+reused after an application update.
 
 - red: the original region raises the score relative to the counterfactuals;
 - blue: the original region lowers the score relative to the counterfactuals;

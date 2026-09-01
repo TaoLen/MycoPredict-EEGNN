@@ -19,7 +19,12 @@ from mycographx.inference import (
     threshold_adjusted_score,
 )
 from mycographx.applicability import load_applicability_domain
-from mycographx.explainability import explain_prediction
+from mycographx.augmentations import apply_rulebook_perturbations
+from mycographx.explainability import (
+    COUNTERFACTUAL_FAMILIES,
+    RULEBOOK_VERSION,
+    explain_prediction,
+)
 from mycographx.model import EDGE_DIM, NODE_DIM, smiles_to_graph
 
 
@@ -28,6 +33,27 @@ def main():
     assert canonical == "CC(=O)Oc1ccccc1C(=O)O"
     assert tuple(graph.x.shape)[1] == NODE_DIM == 48
     assert tuple(graph.edge_attr.shape)[1] == EDGE_DIM == 12
+    required_families = {
+        "TOGGLE_CHARGE_FAMILY_ALL",
+        "POLYVALENT_FAMILY_ALL",
+        "ALIPHATIC_FAMILY_ALL",
+    }
+    assert RULEBOOK_VERSION == "2.0.0"
+    assert required_families <= set(COUNTERFACTUAL_FAMILIES)
+    family_examples = (
+        ("TOGGLE_CHARGE_FAMILY_ALL", "CCN", 2),
+        ("POLYVALENT_FAMILY_ALL", "C[Si](C)(C)C", 1),
+        ("ALIPHATIC_FAMILY_ALL", "CCC", 1),
+    )
+    for family, example_smiles, focus_atom in family_examples:
+        _, _, example_graph = smiles_to_graph(example_smiles)
+        candidates = apply_rulebook_perturbations(
+            example_graph,
+            focus_atom,
+            families=[family],
+        )
+        assert candidates, f"{family} did not generate a counterfactual."
+        assert all(str(rule_id).startswith(family) for _, _, rule_id in candidates)
 
     model, thresholds, device = load_predictor("cpu")
     dropout_modes = []

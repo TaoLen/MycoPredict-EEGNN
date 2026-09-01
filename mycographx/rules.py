@@ -1608,6 +1608,24 @@ def diaryl_family_rules():
         ]
 
 
+def toggle_charge_family_rules():
+    return [
+        {"rule_id": "TOGGLE_CHARGE_FAMILY_ALL",
+        "family": "TOGGLE_CHARGE_FAMILY_ALL",
+        "direction": "toggle_charge",
+        "attachment_ctx": "charge_atom"}
+        ]
+
+
+def polyvalent_family_rules():
+    return [
+        {"rule_id": "POLYVALENT_FAMILY_ALL_SWAP",
+        "family": "POLYVALENT_FAMILY_ALL",
+        "direction": "polyvalent_swap",
+        "attachment_ctx": "center_atom"}
+        ]
+
+
 def aliphatic_family_rules():
     return [
         {"rule_id": "ALIPHATIC_FAMILY_ALL_ISOSTERIC",

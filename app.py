@@ -14,7 +14,7 @@ from mycographx.applicability import (
     EMBEDDING_DOMAIN_SCHEMA,
     load_applicability_domain,
 )
-from mycographx.explainability import explain_prediction
+from mycographx.explainability import RULEBOOK_VERSION, explain_prediction
 from mycographx.inference import (
     ARTIFACTS,
     DEFAULT_EPISTEMIC_PASSES,
@@ -600,6 +600,7 @@ def render_explanation(prediction, model, device, thresholds):
     )
 
     explanation_key = (
+        RULEBOOK_VERSION,
         prediction.canonical_smiles,
         int(target_index),
     )
@@ -633,6 +634,7 @@ def render_explanation(prediction, model, device, thresholds):
         else "Inactive"
     )
     transformation_export = explanation.transformation_table.copy()
+    transformation_export.insert(0, "Rulebook version", RULEBOOK_VERSION)
     relative_mode = map_mode != "Absolute direction"
     map_image = explanation.relative_png if relative_mode else explanation.png
     map_svg = explanation.relative_svg if relative_mode else explanation.svg
@@ -1023,6 +1025,7 @@ with model_tab:
         "Applicability status uses a Gaussian KDE of task-specific leave-one-out "
         "five-neighbor distances over final EEGNN embeddings from the training set."
     )
+    st.caption(f"Chemical counterfactual rulebook version: {RULEBOOK_VERSION}")
     threshold_table = pd.DataFrame(
         {
             "Target": [display_name for display_name, _ in TASKS],
